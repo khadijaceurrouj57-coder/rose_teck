@@ -10,6 +10,8 @@ if(!isset($_SESSION['user']) || $_SESSION['user']['role'] != "admin") {
 
 $user = $_SESSION['user'];
 $page = $_GET['page'] ?? 'home';
+$search = $_GET['search'] ?? '';
+$statusFilter = $_GET['status_filter'] ?? 'Tous';
 
 /* ================= ADD PRODUCT ================= */
 if(isset($_POST['add_product'])) {
@@ -95,13 +97,21 @@ if(isset($_POST['reject_repair'])) {
     exit();
 }
 
-// إنهاء الإصلاح وإدخال ثمن الفاتورة
+/* ================= NOUVEAU : ENVOYER DEVIS AU CLIENT ================= */
+if(isset($_POST['send_devis'])) {
+    $id = $_POST['id'];
+    $devis_price = $_POST['devis_price'] ?? 0;
+    $stmt = $pdo->prepare("UPDATE repairs SET status='Devis envoyé', devis_price=? WHERE id=?");
+    $stmt->execute([$devis_price, $id]);
+    header("Location: admin.php?page=repairs");
+    exit();
+}
+
+/* ================= TERMINER (après acceptation client) ================= */
 if(isset($_POST['complete_repair'])) {
     $id = $_POST['id'];
-    $price = $_POST['repair_price'] ?? 0;
-    
-    $stmt = $pdo->prepare("UPDATE repairs SET status='Terminé', price=?, date_completed=CURDATE() WHERE id=?");
-    $stmt->execute([$price, $id]);
+    $stmt = $pdo->prepare("UPDATE repairs SET status='Terminé', price=devis_price, date_completed=CURDATE() WHERE id=?");
+    $stmt->execute([$id]);
     header("Location: admin.php?page=repairs");
     exit();
 }
@@ -116,13 +126,11 @@ $repairs = $pdo->query("
     ORDER BY repairs.id DESC
 ")->fetchAll();
 
-// حساب المدخول اليومي
 $sales_today = $pdo->query("SELECT SUM(price) as total FROM repairs WHERE status='Terminé' AND date_completed=CURDATE()");
 $revenue_today = $sales_today->fetch()['total'] ?? 0;
 
 $repairs_today = $pdo->query("SELECT repairs.*, users.prenom, users.nom FROM repairs JOIN users ON users.id = repairs.user_id WHERE status='Terminé' AND date_completed=CURDATE()")->fetchAll();
 
-// إحصائيات عامة للـ Dashboard
 $totalProducts = count($products);
 $totalRepairs = count($repairs);
 $pendingRepairs = count(array_filter($repairs, function($r) { return $r['status'] == 'En attente'; }));
@@ -286,8 +294,10 @@ $pendingRepairs = count(array_filter($repairs, function($r) { return $r['status'
                 <h3 class="text-lg font-bold text-slate-900 mb-4">🛠️ Demandes de réparations</h3>
                 <div class="space-y-3">
                     <?php foreach($repairs as $r){ 
-                        $statusClass = "bg-slate-100 text-slate-700";
+                        $statusClass = "bg-slate-100 text-slate-700 border-slate-200";
                         if($r['status'] == "En cours") $statusClass = "bg-blue-50 text-blue-600 border-blue-200";
+                        if($r['status'] == "Devis envoyé") $statusClass = "bg-amber-50 text-amber-600 border-amber-200";
+                        if($r['status'] == "Devis accepté") $statusClass = "bg-emerald-50 text-emerald-600 border-emerald-200";
                         if($r['status'] == "Refusé") $statusClass = "bg-red-50 text-red-600 border-red-200";
                         if($r['status'] == "Terminé") $statusClass = "bg-emerald-50 text-emerald-600 border-emerald-200";
                     ?>
@@ -296,8 +306,14 @@ $pendingRepairs = count(array_filter($repairs, function($r) { return $r['status'
                                 <span class="text-xs font-bold bg-slate-900 text-white px-2 py-0.5 rounded">👤 <?= htmlspecialchars($r['prenom']) ?> <?= htmlspecialchars($r['nom']) ?></span>
                                 <h4 class="text-sm font-bold text-slate-900 mt-2">📱 <?= htmlspecialchars($r['device']) ?></h4>
                                 <p class="text-xs text-slate-500"><b>Problème:</b> <?= htmlspecialchars($r['problem']) ?></p>
+                                <?php if($r['status'] == 'Devis envoyé'){ ?>
+                                    <p class="text-xs text-amber-600 font-bold mt-1">⏳ Devis envoyé : <?= number_format($r['devis_price'] ?? 0, 2) ?> DH — En attente du client</p>
+                                <?php } ?>
+                                <?php if($r['status'] == 'Devis accepté'){ ?>
+                                    <p class="text-xs text-emerald-600 font-bold mt-1">✅ Client a accepté le devis : <?= number_format($r['devis_price'] ?? 0, 2) ?> DH</p>
+                                <?php } ?>
                                 <?php if($r['status'] == 'Terminé') { ?>
-                                    <p class="text-xs text-emerald-600 font-bold mt-1"> Prix payé : <?= number_format($r['price'] ?? 0, 2) ?> DH</p>
+                                    <p class="text-xs text-emerald-600 font-bold mt-1">Prix payé : <?= number_format($r['price'] ?? 0, 2) ?> DH</p>
                                 <?php } ?>
                             </div>
 
@@ -306,14 +322,24 @@ $pendingRepairs = count(array_filter($repairs, function($r) { return $r['status'
                                 
                                 <form method="POST" class="flex items-center gap-1.5">
                                     <input type="hidden" name="id" value="<?= $r['id'] ?>">
+
                                     <?php if($r['status'] == 'En attente'){ ?>
                                         <button name="reject_repair" class="px-2.5 py-1 bg-red-50 text-red-600 text-xs rounded-lg">❌ Refuser</button>
                                         <button name="accept_repair" class="px-2.5 py-1 bg-slate-900 text-white text-xs rounded-lg">✔ Accepter</button>
                                     <?php } ?>
 
                                     <?php if($r['status'] == 'En cours'){ ?>
-                                        <input type="number" name="repair_price" placeholder="Prix DH" required class="w-20 bg-slate-50 border rounded-lg px-2 py-1 text-xs focus:outline-none">
-                                        <button name="complete_repair" class="px-3 py-1 bg-emerald-500 text-white text-xs font-bold rounded-lg">🎉 Terminer</button>
+                                        <input type="number" name="devis_price" placeholder="Prix DH" step="0.01" required
+                                            class="w-24 bg-slate-50 border rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-amber-400">
+                                        <button name="send_devis" class="px-3 py-1 bg-amber-500 text-white text-xs font-bold rounded-lg">
+                                            💰 Envoyer devis
+                                        </button>
+                                    <?php } ?>
+
+                                    <?php if($r['status'] == 'Devis accepté'){ ?>
+                                        <button name="complete_repair" class="px-3 py-1 bg-emerald-500 text-white text-xs font-bold rounded-lg">
+                                            🎉 Terminer
+                                        </button>
                                     <?php } ?>
                                 </form>
                             </div>
@@ -352,7 +378,7 @@ $pendingRepairs = count(array_filter($repairs, function($r) { return $r['status'
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if(count($repairs_today ) == 0) { ?>
+                            <?php if(count($repairs_today) == 0) { ?>
                                 <tr><td colspan="3" class="p-4 text-center text-slate-400">Aucune recette aujourd'hui.</td></tr>
                             <?php } ?>
                             <?php foreach($repairs_today as $op) { ?>

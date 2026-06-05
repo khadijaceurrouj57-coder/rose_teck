@@ -13,11 +13,9 @@ $page = $_GET['page'] ?? 'home';
 
 /* ================= SAVE REPAIR ================= */
 if(isset($_POST['send_repair'])) {
-
     if(empty($user['id'])){
         die("SESSION ERROR: user id missing");
     }
-
     $device = $_POST['device'];
     $problem = $_POST['problem'];
 
@@ -25,37 +23,23 @@ if(isset($_POST['send_repair'])) {
         INSERT INTO repairs (user_id, device, problem, status, accepted)
         VALUES (?, ?, ?, 'En attente', 0)
     ");
-
-    $stmt->execute([
-        $user['id'],
-        $device,
-        $problem
-    ]);
-
+    $stmt->execute([$user['id'], $device, $problem]);
     header("Location: client_home.php?page=track&success=1");
     exit();
 }
 
-/* ================= SUCCESS MESSAGE ================= */
 $message = "";
 if(isset($_GET['success'])) {
     $message = "✔ Demande envoyée avec succès";
 }
 
 /* ================= REPAIRS LIST ================= */
-$repairs = $pdo->prepare("
-    SELECT * FROM repairs 
-    WHERE user_id=? 
-    ORDER BY id DESC
-");
+$repairs = $pdo->prepare("SELECT * FROM repairs WHERE user_id=? ORDER BY id DESC");
 $repairs->execute([$user['id']]);
 $data = $repairs->fetchAll();
 
 /* ================= PRODUCTS ================= */
-$products = $pdo->query("
-    SELECT * FROM products 
-    ORDER BY id DESC
-")->fetchAll();
+$products = $pdo->query("SELECT * FROM products ORDER BY id DESC")->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -115,23 +99,23 @@ $products = $pdo->query("
         <?php if($page == "home"){ ?>
             <div class="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm max-w-4xl">
                 <h2 class="text-2xl font-bold text-slate-900 mb-2">Ravi de vous revoir, <?= htmlspecialchars($user['prenom']) ?> ! 🌸</h2>
-                <p class="text-slate-600 text-sm leading-relaxed">Bienvenue sur votre espace personnel Rose Teck. Ici, vous pouvez demander une réparation pour votre smartphone, suivre l'avancement de vos appareils en temps réel ou jeter un œيل à notre boutique d'appareils reconditionnés certifiés.</p>
+                <p class="text-slate-600 text-sm leading-relaxed">Bienvenue sur votre espace personnel Rose Teck.</p>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
                     <a href="?page=repair" class="p-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-pink-500 transition-all group">
                         <div class="text-xl mb-2">🔧</div>
                         <h4 class="text-sm font-bold text-slate-900 group-hover:text-pink-600">Demander une réparation</h4>
-                        <p class="text-xs text-slate-500 mt-1">Écran, batterie, connecteur... Confiez-nous votre téléphone.</p>
+                        <p class="text-xs text-slate-500 mt-1">Écran, batterie, connecteur...</p>
                     </a>
                     <a href="?page=track" class="p-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-pink-500 transition-all group">
                         <div class="text-xl mb-2">📦</div>
                         <h4 class="text-sm font-bold text-slate-900 group-hover:text-pink-600">Suivre mes dossiers</h4>
-                        <p class="text-xs text-slate-500 mt-1">Vérifiez si votre demande est acceptée ou en cours de réparation.</p>
+                        <p class="text-xs text-slate-500 mt-1">Vérifiez l'état de vos demandes.</p>
                     </a>
                     <a href="?page=shop" class="p-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-pink-500 transition-all group">
                         <div class="text-xl mb-2">🛍️</div>
                         <h4 class="text-sm font-bold text-slate-900 group-hover:text-pink-600">Visiter la boutique</h4>
-                        <p class="text-xs text-slate-500 mt-1">Découvrez nos smartphones reconditionnés par nos expertes.</p>
+                        <p class="text-xs text-slate-500 mt-1">Smartphones reconditionnés.</p>
                     </a>
                 </div>
             </div>
@@ -152,15 +136,13 @@ $products = $pdo->query("
                         <input type="text" name="device" required placeholder="Ex: iPhone 13 Pro, Samsung S22..." 
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:bg-white transition-all text-sm">
                     </div>
-
                     <div>
                         <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">Description du Problème</label>
-                        <textarea name="problem" required rows="4" placeholder="Ex: Écran fissuré, la batterie se décharge vite, vitre arrière cassée..." 
+                        <textarea name="problem" required rows="4" placeholder="Ex: Écran fissuré, batterie..." 
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:bg-white transition-all text-sm resize-none"></textarea>
                     </div>
-
                     <button type="submit" name="send_repair" 
-                        class="w-full bg-slate-900 hover:bg-pink-600 text-white font-medium py-2.5 rounded-xl transition-all text-sm shadow-sm pt-3">
+                        class="w-full bg-slate-900 hover:bg-pink-600 text-white font-medium py-2.5 rounded-xl transition-all text-sm shadow-sm">
                         Envoyer la demande
                     </button>
                 </form>
@@ -172,6 +154,17 @@ $products = $pdo->query("
                 <h2 class="text-xl font-bold text-slate-900 mb-1">📦 Suivi de vos réparations</h2>
                 <p class="text-slate-500 text-xs mb-6">Suivez l'état d'avancement de vos téléphones déposés.</p>
 
+                <?php if(isset($_GET['msg']) && $_GET['msg'] == 'accepted'){ ?>
+                    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs p-3 rounded-xl mb-4 font-medium">
+                        ✅ Vous avez accepté le devis. Votre réparation est en cours !
+                    </div>
+                <?php } ?>
+                <?php if(isset($_GET['msg']) && $_GET['msg'] == 'refused'){ ?>
+                    <div class="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-xl mb-4 font-medium">
+                        ❌ Vous avez refusé le devis. La demande est annulée.
+                    </div>
+                <?php } ?>
+
                 <?php if(count($data) == 0){ ?>
                     <div class="bg-white border border-slate-200 rounded-xl p-6 text-center text-sm text-slate-500 shadow-sm">
                         ❌ Vous n'avez envoyé aucune demande pour le moment.
@@ -182,18 +175,48 @@ $products = $pdo->query("
                     <?php foreach($data as $r){ 
                         $statusClass = "bg-slate-100 text-slate-700 border-slate-200";
                         if($r['status'] == "En cours") $statusClass = "bg-blue-50 text-blue-600 border-blue-200";
+                        if($r['status'] == "Devis envoyé") $statusClass = "bg-amber-50 text-amber-600 border-amber-200";
+                        if($r['status'] == "Devis accepté") $statusClass = "bg-emerald-50 text-emerald-600 border-emerald-200";
                         if($r['status'] == "Refusé") $statusClass = "bg-red-50 text-red-600 border-red-200";
                         if($r['status'] == "Terminé") $statusClass = "bg-emerald-50 text-emerald-600 border-emerald-200";
                     ?>
-                        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="bg-white border <?= $r['status'] == 'Devis envoyé' ? 'border-amber-300' : 'border-slate-200' ?> rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div>
                                 <h4 class="text-sm font-bold text-slate-900">📱 <?= htmlspecialchars($r['device']) ?></h4>
                                 <p class="text-xs text-slate-500 mt-1"><b>Problème :</b> <?= htmlspecialchars($r['problem']) ?></p>
+
+                                <?php if($r['status'] == 'Devis envoyé'){ ?>
+                                    <div class="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 inline-block">
+                                        <p class="text-sm font-black text-amber-700">
+                                            💰 Devis reçu : <?= number_format($r['devis_price'] ?? 0, 2) ?> DH
+                                        </p>
+                                        <p class="text-xs text-amber-600 mt-0.5">Veuillez accepter ou refuser ce devis</p>
+                                    </div>
+                                <?php } ?>
+
+                                <?php if($r['status'] == 'Terminé'){ ?>
+                                    <p class="text-xs text-emerald-600 font-bold mt-1">✅ Réparation terminée — <?= number_format($r['price'] ?? 0, 2) ?> DH</p>
+                                <?php } ?>
                             </div>
-                            <div class="flex items-center">
+
+                            <div class="flex flex-col items-end gap-2">
                                 <span class="text-xs font-semibold px-3 py-1 rounded-full border <?= $statusClass ?>">
                                     <?= htmlspecialchars($r['status']) ?>
                                 </span>
+
+                                <?php if($r['status'] == 'Devis envoyé'){ ?>
+                                    <form method="POST" action="handle_devis.php" class="flex gap-1.5">
+                                        <input type="hidden" name="repair_id" value="<?= $r['id'] ?>">
+                                        <button name="refuse_devis"
+                                            class="px-3 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-200 hover:bg-red-100 transition-all">
+                                            ❌ Refuser
+                                        </button>
+                                        <button name="accept_devis"
+                                            class="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg hover:bg-emerald-600 transition-all">
+                                            ✅ Accepter
+                                        </button>
+                                    </form>
+                                <?php } ?>
                             </div>
                         </div>
                     <?php } ?>
@@ -208,13 +231,11 @@ $products = $pdo->query("
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     <?php foreach($products as $p){ 
-                        // صياغة نص الرسالة الجاهزة
                         $messageWhatsApp = "Bonjour Rose Teck, Je souhaite réserver l'appareil suivant :\n\n"
                                          . "📱 Produit : " . $p['name'] . "\n"
                                          . "💰 Prix : " . number_format($p['price'], 2) . " DH\n\n"
                                          . "Nom du client : " . $user['prenom'] . " " . $user['nom'] . "\n"
                                          . "Merci de me confirmer la disponibilité.";
-                        
                         $urlWhatsApp = "https://wa.me/212611149295?text=" . urlencode($messageWhatsApp);
                     ?>
                         <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
@@ -228,11 +249,10 @@ $products = $pdo->query("
                                 </div>
                                 <div class="p-4">
                                     <h3 class="text-sm font-bold text-slate-900 truncate"><?= htmlspecialchars($p['name']) ?></h3>
-                                    <p class="text-xs text-slate-500 mt-1 line-clamp-2 h-8"><?= htmlspecialchars($p['description']) ?></p>
+                                    <p class="text-xs text-slate-500 mt-1 line-clamp-2"><?= htmlspecialchars($p['description']) ?></p>
                                     <p class="text-lg font-black text-slate-900 mt-3">💰 <?= number_format($p['price'], 2) ?> DH</p>
                                 </div>
                             </div>
-                            
                             <div class="p-4 pt-0">
                                 <div class="flex items-center justify-between text-xs mt-2 border-t border-slate-100 py-3">
                                     <span class="text-slate-500">Stock: <b class="text-slate-900"><?= $p['stock'] ?></b></span>
@@ -242,7 +262,6 @@ $products = $pdo->query("
                                         <span class="text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-md">❌ Rupture</span>
                                     <?php } ?>
                                 </div>
-
                                 <?php if($p['stock'] > 0){ ?>
                                     <a href="<?= $urlWhatsApp ?>" target="_blank" 
                                        class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2 rounded-xl transition-all text-xs shadow-sm flex items-center justify-center gap-2 mt-1">
@@ -250,8 +269,7 @@ $products = $pdo->query("
                                         Réserver par WhatsApp
                                     </a>
                                 <?php } else { ?>
-                                    <button disabled 
-                                       class="w-full bg-slate-100 text-slate-400 font-medium py-2 rounded-xl text-xs cursor-not-allowed flex items-center justify-center gap-2 mt-1">
+                                    <button disabled class="w-full bg-slate-100 text-slate-400 font-medium py-2 rounded-xl text-xs cursor-not-allowed flex items-center justify-center gap-2 mt-1">
                                         Indisponible
                                     </button>
                                 <?php } ?>
